@@ -1,0 +1,80 @@
+from logging import DEBUG
+
+import discord
+from discord.ext import commands
+import logging
+import re
+
+from discord.opus import band_ctl
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+token = os.getenv('DISCORD_TOKEN')
+
+# List of forbidden words
+forbidden_messages = ["nigger", "nigga", "n igger", "niggas", "niggers"]
+
+# List of bad words
+badwords = ["fuck", "shit", "bitch", "fucker", "motherfucker", "fucktard", "retard"]
+
+handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+ENABLE_BADWORDS = True
+ForbiddenMessagess = True
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+@bot.event
+async def on_ready():
+    print(f'Bot is online and connected as {bot.user}!')
+
+@bot.event
+async def on_member_join(member):
+    await member.send(f'Welcome {member.mention}!')
+
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+
+    # Badwords (Swears/Cusses)
+
+    if ENABLE_BADWORDS and any(word in message.content.lower() for word in badwords):
+        await message.delete()
+        await message.channel.send(f"{message.author.mention}! - Don't use that word!")
+
+    # Forbidden messages (Slurs)
+    if forbidden_messages:
+
+        def normalize_words(text):
+            text = text.lower()
+            words = re.findall(r'\b[a-z0-9]+\b', text)
+            return words
+        words = normalize_words(message.content)
+        if any(word in words for word in forbidden_messages):
+
+            member = message.author
+        if isinstance(member, discord.Member) and not member.guild_permissions.administrator:
+                try:
+                    await member.send(f'{member.mention}, You have been banned from novaa. Reason: SLUR')
+                    await member.ban(reason="Sent a forbidden message")
+                    await message.channel.send(f'{member.mention} has been banned for sending forbidden content. Details: Slur')
+                except discord.Forbidden:
+                    await message.channel.send("I do not have permission to ban this user.")
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+
+                    await bot.process_commands(message)
+
+# Channel Logs
+    LOG_CHANNEL_ID = 1487618083286945874
+
+    log_channel = bot.get_channel(LOG_CHANNEL_ID)
+
+    if log_channel:
+        await log_channel.send(f"{message.author} | {message.content} | Action: Ban")
+
+# I forgot what this is I just know it's important
+bot.run(token, log_handler=handler, log_level=logging.DEBUG)
